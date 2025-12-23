@@ -25,7 +25,6 @@ import re
 from typing import Any, Callable, Tuple, Union
 import threading
 import queue
-import pytest
 from dataclasses import dataclass, field
 from rich.console import Console
 from rich.traceback import install, Traceback

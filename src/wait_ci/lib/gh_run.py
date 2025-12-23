@@ -25,8 +25,6 @@ from rich.traceback import install, Traceback
 import argparse
 import os
 import itertools
-from curvpyutils.test_helpers import compare_files
-import pytest
 from .gh_api_parallel import GhPollingClient
 from .github_actions_current_state import GithubActionsCurrentState
 
