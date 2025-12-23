@@ -34,13 +34,12 @@ authors = [{name="Mike Goelzer"}]
 classifiers = ["Programming Language :: Python :: 3 :: Only"]
 dependencies = [
   "rich>=13",
-  "curvpyutils>=0.0.50",
+  "curvpyutils>=0.0.51",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=7.4",
-  "pytest-xdist>=3",
 ]
 
 [project.scripts]
