@@ -15,6 +15,7 @@ dist/
 uv.lock
 
 .ruff_cache/
+.pytest_cache/
 
 # any log files that wind up in this dir
 *.log
