@@ -8,8 +8,8 @@ Tests that the CLI can successfully load and display a captured GitHub Actions r
 
 import subprocess
 import time
+import os
 from pathlib import Path
-import select
 import pytest
 
 
@@ -21,8 +21,9 @@ def test_wait_ci_with_debug_capture_file():
     assert capture_file.exists(), f"Test capture file not found: {capture_file}"
 
     # Run wait-ci as a module with the debug capture file
-    # Use PYTHONPATH to make wait_ci importable
-    env = {"PYTHONPATH": str(repo_root / "src")}
+    # Update PYTHONPATH to make wait_ci importable while preserving existing environment
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo_root / "src")
 
     # Start the process
     process = subprocess.Popen(
