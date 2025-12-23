@@ -236,12 +236,13 @@ class GhJob(list[GhJobStep]):
         return print_str
 
 class GhRun(list[GhJob]):
-    def __init__(self, gh_poller: GhPollingClient, run_id: int, name: str, status: GhStatus = GhStatus.PENDING, conclusion: GhConclusion = GhConclusion.NULL):
+    def __init__(self, gh_poller: GhPollingClient, run_id: int, name: str, status: GhStatus = GhStatus.PENDING, conclusion: GhConclusion = GhConclusion.NULL, repository_full_name: str = ""):
         self.gh_poller = gh_poller
         self.run_id = run_id
         self.name = name
         self.status = status
         self.conclusion = conclusion
+        self.repository_full_name = repository_full_name
         self.run_progress: ProgressStats = ProgressStats()
         super().__init__()
     
@@ -261,11 +262,13 @@ class GhRun(list[GhJob]):
                 continue
             finally:
                 time.sleep(poll_interval_sec)
+            repository_full_name = ghcurr.run.get("repository", {}).get("full_name", "")
             run = cls(  gh_poller,
                         run_id=gh_poller.run_id,
-                        name=ghcurr.run.get("name", ""), 
-                        status=GhStatus(ghcurr.run.get("status", GhStatus.PENDING.value)), 
-                        conclusion=GhConclusion(ghcurr.run.get("conclusion", GhConclusion.NULL.value)))
+                        name=ghcurr.run.get("name", ""),
+                        status=GhStatus(ghcurr.run.get("status", GhStatus.PENDING.value)),
+                        conclusion=GhConclusion(ghcurr.run.get("conclusion", GhConclusion.NULL.value)),
+                        repository_full_name=repository_full_name)
             break
         assert run is not None, "Object should have been constructed if we exited the loop without raising"
         return run

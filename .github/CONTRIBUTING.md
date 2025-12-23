@@ -22,7 +22,7 @@ make install-dev
 make test
 
 # 4) Run the CLI locally
-uv run wait-ci --help
+uv run --no-sync wait-ci --help
 ```
 
 ### Note on using editable local installs
@@ -107,7 +107,7 @@ If you prefer more control:
 make bump-patch  # or bump-minor, bump-major
 
 # 2) Push the tag
-git push origin wait-ci-v$(uv run python scripts/bump_version.py --show-latest)
+git push origin wait-ci-v$(uv run --no-sync python scripts/bump_version.py --show-latest)
 
 # 3) Create GitHub Release
 gh release create wait-ci-v${NEW_VERSION} \
@@ -132,7 +132,7 @@ If something goes wrong, delete the GitHub Release (which also deletes the tag),
 ## 4. Summary checklist
 
 1. Clone + `make install-dev`
-2. Develop / test with `uv run wait-ci`, `make test`, etc.
+2. Develop / test with `uv run --no-sync wait-ci`, `make test`, etc.
 3. To release: `make publish-patch` (or `publish-minor`/`publish-major`)
 
 Thanks for helping improve `wait-ci`!

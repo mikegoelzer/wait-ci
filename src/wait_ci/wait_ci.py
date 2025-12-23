@@ -9,15 +9,15 @@ import time
 
 # Handle both direct execution and package import
 if __name__ == "__main__" and __package__ is None:
-    # Running directly as a script - add parent to path
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from wait_ci.lib import GhRun, GhStatus, GhConclusion, DEFAULT_INTERVALS, GhPollingClient, GhApiFetcher
+    # Running directly as a script - terminate with error
+    print("Error: for dev testing, use `uv run --no-sync wait-ci [...args...]`")
+    sys.exit(1)
 else:
     # Running as part of package
     from .lib import GhRun, GhStatus, GhConclusion, DEFAULT_INTERVALS, GhPollingClient, GhApiFetcher
+    from ._version import __version__
 
-from curvpyutils.multi_progress import DisplayOptions, MessageLineOpt, SizeOpt, SizeOptCustom, StackupOpt, BoundingRectOpt, BarColors, WorkerProgressGroup
+from curvpyutils.multi_progress import DisplayOptions, MessageLineOpt, SizeOpt, SizeOptCustom, StackupOpt, BoundingRectOpt, BarColors, WorkerProgressGroup, TopMessageOpt
 from rich.console import Console
 from rich.text import Text
 from rich.style import Style
@@ -69,6 +69,33 @@ print_out = mk_print_out_fn()
 ################################################################################
 # helper functions
 ################################################################################
+
+def get_repo_full_name_from_cwd() -> str:
+    """
+    Get the repository full name (owner/repo) from the current working directory.
+    Uses `gh repo view` to determine the repository.
+
+    Returns:
+        The repository full name in the format "owner/repo"
+
+    Raises:
+        subprocess.CalledProcessError: if the gh command fails
+        RuntimeError: if the repository name cannot be determined
+    """
+    cmd = ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]
+    result = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True
+    )
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+    repo_full_name = result.stdout.strip()
+    if not repo_full_name:
+        raise RuntimeError("Could not determine repository name from current directory")
+    return repo_full_name
 
 def get_latest_commit_gh_run_id(RETRY_TIMEOUT_SEC: int = 30, DELAY_BETWEEN_ATTEMPTS_SEC: int = 3) -> int:
     """
@@ -151,6 +178,19 @@ def make_parent_parser() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         from parse_known_args().
     """
     parent_parser = argparse.ArgumentParser(add_help=False)
+
+    try:
+        if __version__ is not None:
+            version_str = f"%(prog)s {__version__}"
+    except Exception:
+        version_str = f"%(prog)s (dev)"
+    parent_parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=version_str,
+        help="Show version and exit",
+    )
 
     group = parent_parser.add_argument_group("Verbosity")
     group_mutex = group.add_mutually_exclusive_group()
@@ -263,27 +303,52 @@ def main() -> None:
                 capture_mode=GhApiFetcher.CaptureMode.USE_CAPTURED_JSON, 
                 capture_filename=args.debug_capture_file)
         run_id = fetcher.run_id
-        print_out(f"watching github action run {run_id}...", verbosity=PrintVerbosityLevel.NORMAL)
+        if args.verbosity >= PrintVerbosityLevel.VERBOSE.value:
+            print_out(f"watching github action run {run_id}...", verbosity=PrintVerbosityLevel.NORMAL)
         client = GhPollingClient(fetcher)
 
         run = GhRun.construct_from_gh_poller(client)
 
+        # Get repository full name from run data, or fallback to current directory
+        repo_full_name = run.repository_full_name
+        if not repo_full_name:
+            try:
+                repo_full_name = get_repo_full_name_from_cwd()
+            except (subprocess.CalledProcessError, RuntimeError) as e:
+                print_out(f"Warning: Could not determine repository name: {e}", severity=PrintSeverity.WARNING)
+                repo_full_name = "unknown/unknown"
+
+        run_url = f"https://github.com/{repo_full_name}/actions/runs/{run.run_id}"
         display_options = DisplayOptions(
-            Message=MessageLineOpt(message=f"https://github.com/curvcpu/curv-python/actions/runs/{run.run_id}", message_style=Style(color="dodger_blue1", bold=False, link=f"https://github.com/curvcpu/curv-python/actions/runs/{run.run_id}")),
+            Message=MessageLineOpt(
+                message=run_url, 
+                message_style=Style(color="dodger_blue1", bold=False, link=run_url)),
             Transient=False,
-            FnWorkerIdToName=lambda worker_id: f"{run.get_child_job(worker_id).name}",
-            OverallNameStr=f"{run.name}",
-            OverallNameStrStyle=Style(color="gray66", bold=True),
-            OverallBarColors=BarColors.default(),
-            WorkerBarColors=BarColors.default(),
-            Size=SizeOptCustom(
-                job_bar_args=SizeOptCustom.BarArgs(width=80, fn_elapsed=None, fn_remaining=None), 
-                overall_bar_args=SizeOptCustom.BarArgs(width=60, fn_elapsed=None),
-                max_names_length=-40,
+            TopMessage=TopMessageOpt(
+                f"{run.name}", 
+                Style(color="sky_blue1", bold=True)
             ),
+            FnWorkerIdToName=lambda worker_id: f"{run.get_child_job(worker_id).name}",
+            OverallNameStr="Overall",
+            OverallNameStrStyle=Style(color="gray66", bold=True),
+
+            OverallBarColors=BarColors.green_white(),
+            WorkerBarColors=BarColors.green_white(),
+            # OverallBarColors=BarColors.default(),
+            # WorkerBarColors=BarColors.default(),
+
+            Size=SizeOpt.LARGE,
+            # Size=SizeOptCustom(
+            #     job_bar_args=SizeOptCustom.BarArgs(width=80, fn_elapsed=None, fn_remaining=None), 
+            #     overall_bar_args=SizeOptCustom.BarArgs(width=60, fn_elapsed=None),
+            #     max_names_length=-40,
+            # ),
+
             Stackup=StackupOpt.OVERALL_WORKERS_MESSAGE,
-            BoundingRect=BoundingRectOpt(title=f"GitHub Actions Run {run.run_id}", 
-                                         border_style=Style(color="cornflower_blue", bold=True)),
+            BoundingRect=BoundingRectOpt(
+                title=f"GitHub Actions Run {run.run_id}", 
+                border_style=Style(color="sky_blue2", bold=True)
+            ),
         )
         worker_group = WorkerProgressGroup(display_options=display_options)
         latest = {}
@@ -309,8 +374,8 @@ def main() -> None:
                     if run.conclusion == GhConclusion.SUCCESS:
                         worker_group.update_display_options(new_display_options=DisplayOptions(
                             Message=MessageLineOpt(message="✅ CI completed successfully", message_style=Style(color="dodger_blue1", bold=True)),
-                            BoundingRect=BoundingRectOpt(title=f"SUCCESS: Run {run.run_id}", 
-                                                         border_style=Style(color="spring_green1", bold=True)),
+                            BoundingRect=BoundingRectOpt(title=f"Run {run.run_id} (success)", 
+                                                         border_style=Style(color="sky_blue2", bold=True)),
                         ))
                         worker_group.complete_all()
                     else:
@@ -340,7 +405,8 @@ def main() -> None:
 
     if run is not None:
         if run.conclusion == GhConclusion.SUCCESS:
-            print_out("✓ CI run completed successfully", severity=PrintSeverity.NORMAL)
+            if args.verbosity >= PrintVerbosityLevel.VERBOSE.value:
+                print_out("✓ CI run completed successfully", severity=PrintSeverity.NORMAL)
             sys.exit(0)
         else:
             print_out("✗ CI run completed with failure", severity=PrintSeverity.ERROR)
