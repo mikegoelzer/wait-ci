@@ -19,6 +19,9 @@ version-file = "src/wait_ci/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/wait_ci"]
+exclude = [
+  "wait_ci/dev_tools",
+]
 
 [project]
 name = "wait-ci"
