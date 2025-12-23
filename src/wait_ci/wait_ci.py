@@ -206,8 +206,8 @@ def parse_args() -> argparse.Namespace:
             type=int,
         )
     
-    parser.add_argument("--timeout-ci-start", '-t', type=int, default=30, help="Timeout in seconds to wait for the CI run to start (default: %{default}s; 0 means wait forever)")
-    parser.add_argument("--interval-ci-start", '-i', type=int, default=3, help="Interval in seconds between polling to see if CI has started (default: %{default}s)")
+    parser.add_argument("--timeout-ci-start", '-t', type=int, default=30, help="Timeout in seconds to wait for the CI run to start (default: %(default)s; 0 means wait forever)")
+    parser.add_argument("--interval-ci-start", '-i', type=int, default=3, help="Interval in seconds between polling to see if CI has started (default: %(default)s)")
 
     args = parser.parse_args()
 
