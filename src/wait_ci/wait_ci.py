@@ -70,6 +70,32 @@ print_out = mk_print_out_fn()
 # helper functions
 ################################################################################
 
+def repo_has_workflows() -> bool | None:
+    """
+    Check whether the current repository has any GitHub Actions workflows configured.
+    Uses `gh api` to query the workflows endpoint for the current repo.
+
+    Returns:
+        True if the repo has at least one workflow configured.
+        False if the repo has zero workflows configured.
+        None if we couldn't determine (e.g. gh command failed or returned unexpected output).
+    """
+    cmd = ["gh", "api", "repos/{owner}/{repo}/actions/workflows", "--jq", ".total_count"]
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    try:
+        return int(result.stdout.strip()) > 0
+    except ValueError:
+        return None
+
 def get_repo_full_name_from_cwd() -> str:
     """
     Get the repository full name (owner/repo) from the current working directory.
@@ -267,6 +293,12 @@ def parse_args() -> argparse.Namespace:
     # (only relevant when NOT using a debug capture file, since run_id is extracted from the filename)
     if args.debug_capture_file is None:
         if args.GH_ACTION_RUN_ID is None:
+            # If the repo has no workflows at all, there is nothing to wait for — exit 0.
+            # (If we can't determine, fall through and let the existing logic try.)
+            if repo_has_workflows() is False:
+                if args.verbosity >= PrintVerbosityLevel.NORMAL.value:
+                    print_out("no GitHub Actions workflows configured in this repo; nothing to wait for")
+                sys.exit(0)
             try:
                 args.GH_ACTION_RUN_ID = get_latest_commit_gh_run_id(args.timeout_ci_start, args.interval_ci_start)
             except Exception as e:
